@@ -24,7 +24,6 @@ static void logString(CFStringRef format, ...)
         if (converted)
         {
             buf[len] = '\0';
-            printf("%s\n", buf);
         }
     }
 
@@ -55,6 +54,7 @@ static bool writeDataToFile(CFDataRef data, const char *fname)
     }
 
     CFIndex len = CFDataGetLength(data);
+    printf("%s\n", (const char *)CFDataGetBytePtr(data));
     ssize_t read = write(fd, CFDataGetBytePtr(data), len);
     fsync(fd);
     close(fd);
@@ -76,7 +76,7 @@ static int plConvert(const char *cfile, const char *nfile, bool openStep)
         if (!plist) {
             logString(CFSTR("Unable to create property list from data: %@"), error);
         } else {
-            logString(CFSTR("Property List Contents: %@"), plist);
+            // logString(CFSTR("Property List Contents:\n%@"), plist);
 
             if (!openStep) {
                 if (format == kCFPropertyListBinaryFormat_v1_0) {
