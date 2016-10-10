@@ -8,9 +8,6 @@
 .section kCXKCodeSectionName
 .align kCXKNaturalAlignment
 
-.extern SLBootServicesHaveTerminated
-.extern SLDelayProcessor
-
 // Arguments:
 //   %cx: port
 //
@@ -45,12 +42,12 @@
 //
 // Destroyed Registers:
 //   \wr
-.macro SLSerialDelay wr
+.macro SLSerialDelay wr, times
     //callq SLBootServicesHaveTerminated
     //movb %al, %dl
     //callq SLDelayProcessor
 
-    movw $250, \wr
+    movw \times, \wr
 
     99:
         nop; nop; nop; nop
@@ -244,7 +241,7 @@ CXKDeclareFunction(SLSerialWriteCharacter):
         jnz 3f
         testb %r8b, %r8b
         jz 4f
-        SLSerialDelay %ax
+        SLSerialDelay %ax, $100
         jmp 2b
 
     3:
@@ -283,7 +280,7 @@ CXKDeclareFunction(SLSerialReadCharacter):
         jnz 2f
         testb %r8b, %r8b
         jz 3f
-        SLSerialDelay %ax
+        SLSerialDelay %ax, $50
         jmp 1b
 
     2:
